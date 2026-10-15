@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.1.0.0</Version>
+    <Author>haphazard</Author>
+    <Name>PriceScout</Name>
+    <Punchline>Check market board prices across worlds without leaving the game.</Punchline>
+    <Description>Look up Universalis market data for any item: cheapest listings per world in your data center or region, and recent sales.
+Use /pricescout &lt;item name&gt; or right-click an item and choose "Check Prices".</Description>
+    <Tags>market;prices;universalis;economy</Tags>
+  </PropertyGroup>
+</Project>

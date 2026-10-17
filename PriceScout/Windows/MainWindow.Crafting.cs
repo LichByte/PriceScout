@@ -42,7 +42,7 @@ public partial class MainWindow
 
         var ingredientIds = recipe.Ingredients.Select(i => i.ItemId).Where(plugin.MarketItems.ContainsKey).ToList();
         ingredientPrices.Ensure($"{scope}:{recipe.RecipeId}", token =>
-            plugin.Universalis.GetMarketDataBatchAsync(scope, ingredientIds, 20, 0, token));
+            plugin.Universalis.GetMarketDataBatchAsync(scope, ingredientIds, 100, 0, token));
 
         if (ingredientPrices.Loading)
         {
@@ -69,6 +69,7 @@ public partial class MainWindow
 
         long totalCost = 0;
         var missingPrice = false;
+        var shortStock = false;
 
         using (var table = ImRaii.Table("##ingredients", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH))
         {
@@ -76,7 +77,7 @@ public partial class MainWindow
             {
                 ImGui.TableSetupColumn("Ingredient", ImGuiTableColumnFlags.WidthStretch);
                 ImGui.TableSetupColumn("Need");
-                ImGui.TableSetupColumn("Cheapest each");
+                ImGui.TableSetupColumn("Price each");
                 ImGui.TableSetupColumn("World");
                 ImGui.TableSetupColumn("Subtotal");
                 ImGui.TableHeadersRow();
@@ -84,9 +85,8 @@ public partial class MainWindow
                 foreach (var ingredient in recipe.Ingredients)
                 {
                     var need = ingredient.Amount * craftCount;
-                    var cheapest = prices.TryGetValue(ingredient.ItemId, out var market)
-                        ? market.Listings.MinBy(l => l.PricePerUnit)
-                        : null;
+                    // Priced the same way as the shopping list: whole stacks, on the one world where they cost least.
+                    var cheapest = prices.TryGetValue(ingredient.ItemId, out var market) ? BestWorld(market, need) : null;
 
                     ImGui.TableNextRow();
                     ImGui.TableNextColumn();
@@ -105,13 +105,27 @@ public partial class MainWindow
                     ImGui.TableNextColumn();
                     if (cheapest != null)
                     {
-                        ImGui.Text(FormatGil(cheapest.PricePerUnit));
+                        ImGui.Text(FormatGil((double)cheapest.Cost / Math.Max(1, cheapest.Quantity)));
+                        if (cheapest.Quantity > need && ImGui.IsItemHovered())
+                            ImGui.SetTooltip($"Average over the {cheapest.Quantity} you'd have to buy (stacks can't be split).");
                         ImGui.TableNextColumn();
-                        ImGui.Text(cheapest.WorldName ?? "?");
+                        ImGui.Text(cheapest.World);
                         ImGui.TableNextColumn();
-                        var subtotal = cheapest.PricePerUnit * need;
-                        totalCost += subtotal;
-                        ImGui.Text(FormatGil(subtotal));
+                        if (cheapest.Quantity < need)
+                        {
+                            // Not enough for sale on any one world: estimate the rest at the same average price.
+                            shortStock = true;
+                            var estimate = (long)Math.Round((double)cheapest.Cost / cheapest.Quantity * need);
+                            totalCost += estimate;
+                            ImGui.TextColored(StaleColor, $"~{FormatGil(estimate)}");
+                            if (ImGui.IsItemHovered())
+                                ImGui.SetTooltip($"Only {cheapest.Quantity} for sale on {cheapest.World}; the rest is estimated at the same price.");
+                        }
+                        else
+                        {
+                            totalCost += cheapest.Cost;
+                            ImGui.Text(FormatGil(cheapest.Cost));
+                        }
                     }
                     else
                     {
@@ -126,6 +140,8 @@ public partial class MainWindow
 
         if (missingPrice)
             ImGui.TextColored(StaleColor, "Some ingredients can't be bought on the market, so the cost below leaves them out.");
+        if (shortStock)
+            ImGui.TextColored(StaleColor, "No single world has enough of some ingredients; their cost is an estimate.");
 
         ImGui.Separator();
 

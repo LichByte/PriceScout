@@ -40,6 +40,7 @@ public partial class MainWindow : Window, IDisposable
 
     // Set when ShowItem is called so the Lookup tab gets focus on the next draw.
     private bool focusLookupTab;
+    private bool focusSettingsTab;
 
     public MainWindow(Plugin plugin)
         : base("PriceScout##PriceScoutMain")
@@ -75,6 +76,12 @@ public partial class MainWindow : Window, IDisposable
         suggestions.Clear();
         selectedItem = item;
         Fetch();
+    }
+
+    public void OpenSettings()
+    {
+        IsOpen = true;
+        focusSettingsTab = true;
     }
 
     // Logging in or travelling to another world changes which prices are relevant, so reload them.
@@ -179,7 +186,9 @@ public partial class MainWindow : Window, IDisposable
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Settings"))
+        var settingsFlags = focusSettingsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
+        focusSettingsTab = false;
+        if (ImGui.BeginTabItem("Settings", settingsFlags))
         {
             DrawSettings();
             ImGui.EndTabItem();
@@ -215,6 +224,25 @@ public partial class MainWindow : Window, IDisposable
         if (ImGui.Checkbox("Pop-up notification when a retainer sells something", ref saleNotifications))
         {
             config.SaleNotificationsEnabled = saleNotifications;
+            config.Save();
+        }
+
+        ImGui.Spacing();
+        ImGui.SetNextItemWidth(100 * ImGuiHelpers.GlobalScale);
+        var listingCount = config.ListingCount;
+        if (ImGui.InputInt("Listings to load per item", ref listingCount, 10))
+        {
+            config.ListingCount = Math.Clamp(listingCount, 10, 100);
+            config.Save();
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("How many of the cheapest listings the Listings tab shows (10-100).");
+
+        ImGui.SetNextItemWidth(100 * ImGuiHelpers.GlobalScale);
+        var historyCount = config.HistoryCount;
+        if (ImGui.InputInt("Recent sales to show", ref historyCount, 5))
+        {
+            config.HistoryCount = Math.Clamp(historyCount, 5, 100);
             config.Save();
         }
     }
@@ -700,11 +728,12 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        using var table = ImRaii.Table("##watchlist", 6, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.ScrollY);
+        using var table = ImRaii.Table("##watchlist", 7, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.ScrollY);
         if (!table.Success)
             return;
 
         ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("HQ only", ImGuiTableColumnFlags.WidthFixed, 55 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("Cheapest", ImGuiTableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("World", ImGuiTableColumnFlags.WidthFixed, 90 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("Checked", ImGuiTableColumnFlags.WidthFixed, 60 * ImGuiHelpers.GlobalScale);
@@ -727,6 +756,16 @@ public partial class MainWindow : Window, IDisposable
             ImGui.SameLine();
             if (ImGui.Selectable($"{item.Name}##watch{item.Id}"))
                 ShowItem(item);
+
+            ImGui.TableNextColumn();
+            if (item.CanBeHq)
+            {
+                var hqOnly = watched.HqOnly;
+                if (ImGui.Checkbox($"##hqOnly{item.Id}", ref hqOnly))
+                    watchlist.SetHqOnly(item.Id, hqOnly);
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Only look at HQ listings for the price and the alert.");
+            }
 
             ImGui.TableNextColumn();
             if (result == null)

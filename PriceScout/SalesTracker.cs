@@ -192,6 +192,11 @@ public sealed class SalesTracker : IDisposable
                 _ = ConfirmOfflineSales(retainerName!, missing);
         }
 
+        // This runs every second while the sell list is open, so only touch the saved config when the list changed.
+        var unchanged = previous.Count == current.Count && current.All(c => previous.Any(p => Same(c, p)));
+        if (unchanged && Config.RetainerListingCounts.GetValueOrDefault(key, -1) == current.Count)
+            return;
+
         // Remember the list as it is now. Listings that were already there keep their original time.
         Config.RetainerListings[key] = current
             .Select(c => previous.FirstOrDefault(p => Same(c, p)) ?? new TrackedListing

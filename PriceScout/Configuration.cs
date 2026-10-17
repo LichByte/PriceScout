@@ -17,6 +17,9 @@ public class WatchedItem
 
     // Alert when the cheapest listing is at or below this price. 0 turns the alert off.
     public int AlertBelow { get; set; }
+
+    // Only consider HQ listings for the price and the alert.
+    public bool HqOnly { get; set; }
 }
 
 [Serializable]

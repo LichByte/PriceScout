@@ -132,23 +132,33 @@ public partial class MainWindow
         var plan = new ShoppingPlan { Scope = scope };
         foreach (var (itemId, quantity) in wanted)
         {
-            if (!markets.TryGetValue(itemId, out var market) || market.Listings.Count == 0)
+            var best = markets.TryGetValue(itemId, out var market) ? BestWorld(market, quantity) : null;
+            if (best == null)
             {
                 plan.Unavailable.Add(itemId);
                 continue;
             }
 
-            var options = market.Listings
-                .GroupBy(l => l.WorldName ?? "?")
-                .Select(g => CostOnWorld(g.Key, g.OrderBy(l => l.PricePerUnit), quantity))
-                .ToList();
-
-            var best = options.Where(o => o.Quantity >= quantity).MinBy(o => o.Cost)
-                ?? options.MaxBy(o => o.Quantity)!;
-            plan.Lines.Add(best with { ItemId = itemId, Wanted = quantity });
+            plan.Lines.Add(best with { ItemId = itemId });
         }
 
         return plan;
+    }
+
+    // The single world where buying `quantity` costs least, or the one with the most stock if none has enough.
+    // Null when nothing is listed.
+    private static PlanLine? BestWorld(MarketData market, int quantity)
+    {
+        if (market.Listings.Count == 0)
+            return null;
+
+        var options = market.Listings
+            .GroupBy(l => l.WorldName ?? "?")
+            .Select(g => CostOnWorld(g.Key, g.OrderBy(l => l.PricePerUnit), quantity))
+            .ToList();
+
+        return options.Where(o => o.Quantity >= quantity).MinBy(o => o.Cost)
+            ?? options.MaxBy(o => o.Quantity)!;
     }
 
     // Buys whole listings (the market board doesn't split stacks), cheapest first, until the amount is covered.

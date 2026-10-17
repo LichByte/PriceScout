@@ -48,7 +48,8 @@ public sealed class TooltipPrices : IDisposable
         if (scope == null)
             return;
 
-        prices.Ensure($"{scope}:{itemId}", token => LoadPrices(scope, itemId, token));
+        // Keyed by hover so hovering the same item again later picks up newer prices (the client caches for 2 minutes).
+        prices.Ensure($"{scope}:{itemId}:{hoverStarted.Ticks}", token => LoadPrices(scope, itemId, token));
         DrawBox(item, scope);
     }
 

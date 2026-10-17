@@ -108,7 +108,8 @@ public sealed class UniversalisClient : IDisposable
 
     public UniversalisClient()
     {
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("PriceScout-Dalamud/0.1");
+        var version = typeof(UniversalisClient).Assembly.GetName().Version?.ToString(3) ?? "0";
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"PriceScout-Dalamud/{version}");
     }
 
     // Universalis sometimes answers 502/503/504 when it's busy; those usually succeed on a retry.

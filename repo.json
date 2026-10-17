@@ -1,0 +1,30 @@
+﻿[
+    {
+        "Author":  "haphazard",
+        "Name":  "PriceScout",
+        "InternalName":  "PriceScout",
+        "AssemblyVersion":  "1.0.0.0",
+        "Description":  "Market board prices from Universalis, in game: the cheapest listing on every world in your data center or region, prices on item tooltips, and a right-click \"Check Prices\" option.\nAlso includes a watchlist with price alerts, price history charts, crafting profit, a shopping list that finds the cheapest worlds, an undercut checker for your retainers and a retainer sales log.\nUse /pricescout (or /psc) to open it, or /pricescout \u003citem name\u003e to look something up.",
+        "Punchline":  "Check market board prices across worlds without leaving the game.",
+        "ApplicableVersion":  "any",
+        "RepoUrl":  "https://github.com/LichByte/PriceScout",
+        "IconUrl":  "https://raw.githubusercontent.com/LichByte/PriceScout/main/images/icon.png",
+        "Tags":  [
+                     "market",
+                     "market board",
+                     "prices",
+                     "universalis",
+                     "retainer",
+                     "undercut",
+                     "crafting",
+                     "economy"
+                 ],
+        "DalamudApiLevel":  15,
+        "AcceptsFeedback":  false,
+        "DownloadLinkInstall":  "https://github.com/LichByte/PriceScout/releases/latest/download/latest.zip",
+        "DownloadLinkUpdate":  "https://github.com/LichByte/PriceScout/releases/latest/download/latest.zip",
+        "DownloadLinkTesting":  "https://github.com/LichByte/PriceScout/releases/latest/download/latest.zip",
+        "LastUpdate":  1792184717,
+        "Changelog":  ""
+    }
+]

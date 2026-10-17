@@ -1,0 +1,47 @@
+# Builds PriceScout and publishes a GitHub release when a version tag (e.g. v1.0.0) is pushed,
+# then updates repo.json on main so players get the update.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Download Dalamud
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile dalamud.zip
+          Expand-Archive dalamud.zip -DestinationPath "$env:RUNNER_TEMP/dalamud"
+          "DALAMUD_HOME=$env:RUNNER_TEMP/dalamud/" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build
+        run: dotnet build PriceScout/PriceScout.csproj -c Release
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} PriceScout/bin/Release/PriceScout/latest.zip --title "PriceScout ${{ github.ref_name }}" --notes-file CHANGELOG.md
+
+      - name: Update repo.json
+        shell: pwsh
+        run: |
+          ./tools/make-repo-json.ps1 -Changelog "See https://github.com/LichByte/PriceScout/blob/main/CHANGELOG.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repo.json
+          git commit -m "Update repo.json for ${{ github.ref_name }}"
+          git push origin main

@@ -23,6 +23,7 @@ public sealed class UndercutWindow : Window, IDisposable
     private HashSet<string> ownRetainers = new(StringComparer.OrdinalIgnoreCase);
     private string retainerName = string.Empty;
     private DateTime nextScan = DateTime.MinValue;
+    private bool placeBesideSellList;
 
     public UndercutWindow(Plugin plugin)
         : base("Undercut Checker##PriceScoutUndercut", ImGuiWindowFlags.AlwaysAutoResize)
@@ -46,10 +47,26 @@ public sealed class UndercutWindow : Window, IDisposable
 
         listings.Clear();
         nextScan = DateTime.MinValue;
+        placeBesideSellList = true;
         IsOpen = true;
     }
 
     private void OnSellListClosed(AddonEvent type, AddonArgs args) => IsOpen = false;
+
+    // Each time the sell list opens, start the checker just to the right of it. After that it can be moved freely.
+    public override void PreDraw()
+    {
+        if (!placeBesideSellList)
+            return;
+
+        var sellList = Plugin.GameGui.GetAddonByName(SellListAddon);
+        if (sellList.IsNull || !sellList.IsVisible)
+            return;
+
+        placeBesideSellList = false;
+        var position = ImGuiHelpers.MainViewport.Pos + new Vector2(sellList.X + sellList.ScaledWidth + 8 * ImGuiHelpers.GlobalScale, sellList.Y);
+        ImGui.SetNextWindowPos(position);
+    }
 
     public override void Draw()
     {
@@ -113,8 +130,9 @@ public sealed class UndercutWindow : Window, IDisposable
         ImGui.TableSetupColumn("Status");
         ImGui.TableHeadersRow();
 
-        foreach (var listing in listings)
+        for (var index = 0; index < listings.Count; index++)
         {
+            var listing = listings[index];
             var name = plugin.MarketItems.TryGetValue(listing.ItemId, out var item) ? item.Name : $"Item {listing.ItemId}";
 
             // Compare against other sellers' listings of the same quality, ignoring all of your own retainers.
@@ -126,7 +144,7 @@ public sealed class UndercutWindow : Window, IDisposable
 
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
-            if (item != null && ImGui.Selectable($"{name}{(listing.Hq ? " (HQ)" : string.Empty)}##undercut{listing.ItemId}{listing.Hq}"))
+            if (item != null && ImGui.Selectable($"{name}{(listing.Hq ? " (HQ)" : string.Empty)}##undercut{index}"))
                 plugin.ShowItem(item);
             else if (item == null)
                 ImGui.Text(name);

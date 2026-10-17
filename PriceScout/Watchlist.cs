@@ -23,6 +23,7 @@ public sealed class WatchResult
 public sealed class Watchlist : IDisposable
 {
     private const int ListingsPerItem = 10;
+    private const int HqOnlyListingsPerItem = 50;
 
     private readonly Plugin plugin;
     private readonly ConcurrentDictionary<uint, WatchResult> results = new();
@@ -71,6 +72,19 @@ public sealed class Watchlist : IDisposable
         alerted.TryRemove(itemId, out _);
     }
 
+    public void SetHqOnly(uint itemId, bool hqOnly)
+    {
+        var watched = plugin.Configuration.Watchlist.FirstOrDefault(w => w.ItemId == itemId);
+        if (watched == null)
+            return;
+
+        watched.HqOnly = hqOnly;
+        plugin.Configuration.Save();
+        results.TryRemove(itemId, out _);
+        alerted.TryRemove(itemId, out _);
+        RefreshNow();
+    }
+
     public void RefreshNow() => nextRefresh = DateTime.MinValue;
 
     private void OnFrameworkUpdate(IFramework framework)
@@ -79,7 +93,7 @@ public sealed class Watchlist : IDisposable
             return;
 
         var config = plugin.Configuration;
-        var items = config.Watchlist.Select(w => (w.ItemId, w.AlertBelow)).ToList();
+        var items = config.Watchlist.Select(w => (w.ItemId, w.AlertBelow, w.HqOnly)).ToList();
         var scope = plugin.ResolveScope();
         nextRefresh = DateTime.UtcNow.AddMinutes(Math.Max(1, config.WatchRefreshMinutes));
 
@@ -92,16 +106,18 @@ public sealed class Watchlist : IDisposable
         {
             try
             {
-                foreach (var (itemId, alertBelow) in items)
+                // One request per group of up to 100 items. HQ-only items need more listings,
+                // since the cheapest few are often all NQ.
+                foreach (var group in items.GroupBy(i => i.HqOnly))
                 {
-                    if (token.IsCancellationRequested)
-                        return;
-
-                    results[itemId] = await FetchOne(scope, itemId, token).ConfigureAwait(false);
-                    CheckAlert(itemId, alertBelow, results[itemId]);
-
-                    // Be polite to Universalis.
-                    await Task.Delay(250, token).ConfigureAwait(false);
+                    var listings = group.Key ? HqOnlyListingsPerItem : ListingsPerItem;
+                    var batch = group.ToList();
+                    var fetched = await FetchBatch(scope, batch.Select(i => i.ItemId).ToList(), listings, group.Key, token).ConfigureAwait(false);
+                    foreach (var (itemId, alertBelow, _) in batch)
+                    {
+                        results[itemId] = fetched[itemId];
+                        CheckAlert(itemId, alertBelow, fetched[itemId]);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -114,28 +130,34 @@ public sealed class Watchlist : IDisposable
         }, token);
     }
 
-    private async Task<WatchResult> FetchOne(string scope, uint itemId, CancellationToken token)
+    private async Task<Dictionary<uint, WatchResult>> FetchBatch(string scope, List<uint> itemIds, int listings, bool hqOnly, CancellationToken token)
     {
+        var now = DateTime.UtcNow;
         try
         {
-            var data = await plugin.Universalis
-                .GetMarketDataAsync(scope, itemId, ListingsPerItem, 0, token)
+            var markets = await plugin.Universalis
+                .GetMarketDataBatchAsync(scope, itemIds, listings, 0, token)
                 .ConfigureAwait(false);
 
-            var cheapest = data?.Listings.MinBy(l => l.PricePerUnit);
-            return new WatchResult
+            return itemIds.ToDictionary(id => id, id =>
             {
-                CheapestPrice = cheapest?.PricePerUnit ?? 0,
-                CheapestIsHq = cheapest?.Hq ?? false,
-                CheapestWorld = cheapest?.WorldName,
-                ListingCount = data?.Listings.Count ?? 0,
-                FetchedAt = DateTime.UtcNow,
-            };
+                var candidates = markets.TryGetValue(id, out var data) ? data.Listings.Where(l => !hqOnly || l.Hq).ToList() : new List<Listing>();
+                var cheapest = candidates.MinBy(l => l.PricePerUnit);
+                return new WatchResult
+                {
+                    CheapestPrice = cheapest?.PricePerUnit ?? 0,
+                    CheapestIsHq = cheapest?.Hq ?? false,
+                    CheapestWorld = cheapest?.WorldName,
+                    ListingCount = candidates.Count,
+                    FetchedAt = now,
+                };
+            });
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Plugin.Log.Warning(ex, $"Watchlist fetch failed for item {itemId}");
-            return new WatchResult { FetchedAt = DateTime.UtcNow, Error = ex.Message };
+            Plugin.Log.Warning(ex, "Watchlist fetch failed");
+            var error = UniversalisClient.Describe(ex);
+            return itemIds.ToDictionary(id => id, _ => new WatchResult { FetchedAt = now, Error = error });
         }
     }
 

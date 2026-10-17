@@ -111,7 +111,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         PluginInterface.UiBuilder.Draw += TooltipPrices.Draw;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
-        PluginInterface.UiBuilder.OpenConfigUi += ToggleMainUi;
+        PluginInterface.UiBuilder.OpenConfigUi += OpenSettings;
         ContextMenu.OnMenuOpened += OnContextMenuOpened;
         Framework.Update += OnFrameworkUpdate;
 
@@ -125,7 +125,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         PluginInterface.UiBuilder.Draw -= TooltipPrices.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
-        PluginInterface.UiBuilder.OpenConfigUi -= ToggleMainUi;
+        PluginInterface.UiBuilder.OpenConfigUi -= OpenSettings;
 
         WindowSystem.RemoveAllWindows();
         MainWindow.Dispose();
@@ -287,4 +287,6 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     public void ToggleMainUi() => MainWindow.Toggle();
+
+    private void OpenSettings() => MainWindow.OpenSettings();
 }
